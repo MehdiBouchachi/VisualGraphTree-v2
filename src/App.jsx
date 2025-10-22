@@ -30,7 +30,7 @@ function App() {
         <BrowserRouter>
           <Routes>
             <Route element={<AppLayout />}>
-              <Route path="tp" element={<Navigate to="/graphs" replace />} />
+              <Route path="/" element={<Navigate to="/graphs" replace />} />
               <Route path="graphs" element={<TP1GraphsPage />} />
               <Route path="trees" element={<TP1TreesPage />} />
               <Route path="search" element={<TP2SearchPage />} />
