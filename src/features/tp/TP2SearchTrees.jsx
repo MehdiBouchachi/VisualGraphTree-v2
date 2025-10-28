@@ -8,10 +8,12 @@ import DataItem from "../../ui/DataItem";
 import Input from "../../ui/Input";
 import { BST } from "../../lib/trees/bst";
 import { AVL } from "../../lib/trees/avl";
+import { RBT } from "../../lib/trees/rbt";
 import { BinaryHeap } from "../../lib/trees/heap";
 import { treePositions } from "../../lib/trees/layout";
 
-/* ========== helpers for numeric-only text inputs ========== */
+/* ========= helpers ========= */
+
 function sanitizeInt(str, allowNegative = true) {
   if (typeof str !== "string") str = String(str ?? "");
   let s = str.replace(/[^\d-]/g, "");
@@ -25,47 +27,38 @@ function parseNum(str, fallback = 0) {
   return Number.isNaN(n) ? fallback : n;
 }
 
-/* ========== tiny utils for syncing & dedup ========== */
 function sortedValuesFromGraph(graphData) {
   const vals = Array.from(graphData?.labels?.values?.() ?? [])
-    .map((v) => Number(v))
+    .map((v) => {
+      const match = String(v).match(/^-?\d+/);
+      const num = parseInt(match?.[0] ?? "", 10);
+      return num;
+    })
     .filter((n) => !Number.isNaN(n));
   vals.sort((a, b) => a - b);
   return vals;
 }
+
 function textFromStructure(struct, instance, graphData) {
   if (struct === "Heap") return (instance?.a ?? []).join(",");
   if (instance && typeof instance.inorder === "function") {
     try {
       return instance.inorder().join(",");
     } catch {
-      console.warn("inorder() failed, falling back to graph()");
+      /* ignore */
     }
   }
   return sortedValuesFromGraph(graphData).join(",");
 }
-/* order-preserving, numeric-only dedupe for textarea */
-function dedupeListString(str) {
-  const parts = str.replace(/,/g, "\n").split(/\s+/).filter(Boolean);
-  const seen = new Set();
-  const out = [];
-  for (const t of parts) {
-    const n = Number(t);
-    if (Number.isNaN(n)) continue;
-    if (!seen.has(n)) {
-      seen.add(n);
-      out.push(n);
-    }
-  }
-  return out.join(",");
-}
 
-/* ========== Layout & Cards (row-based) ========== */
+/* ========= styled ========= */
+
 const PageStack = styled.div`
   display: grid;
   grid-template-rows: auto auto;
   gap: 2.4rem;
 `;
+
 const Card = styled.div`
   background: var(--color-grey-0);
   border: 1px solid var(--color-grey-200);
@@ -73,21 +66,25 @@ const Card = styled.div`
   box-shadow: var(--shadow-sm);
   padding: 1.8rem;
 `;
+
 const SectionTitle = styled.h3`
   font-size: 1.6rem;
   font-weight: 700;
   color: var(--color-grey-700);
   margin-bottom: 1.2rem;
 `;
+
 const TightTitle = styled(SectionTitle)`
   margin-bottom: 0.6rem;
 `;
+
 const RowWrap = styled.div`
   display: flex;
   gap: 1rem;
   align-items: center;
   flex-wrap: wrap;
 `;
+
 const GridTwo = styled.div`
   display: grid;
   grid-template-columns: 1.2fr 1fr;
@@ -98,27 +95,28 @@ const GridTwo = styled.div`
   }
 `;
 
-/* ========== Form/Gens ========== */
 const Field = styled.div`
   display: grid;
   gap: 0.4rem;
   min-width: 120px;
 `;
+
 const Label = styled.label`
   font-size: 1.2rem;
   color: var(--color-grey-600);
 `;
+
 const ErrorText = styled.span`
   font-size: 1.2rem;
   color: var(--color-red-700);
 `;
 
-/* ========== Chip List ========== */
 const Chips = styled.div`
   display: flex;
   flex-wrap: wrap;
   gap: 0.6rem;
 `;
+
 const Chip = styled.span`
   background: var(--color-indigo-100);
   color: var(--color-indigo-700);
@@ -128,7 +126,6 @@ const Chip = styled.span`
   font-size: 1.2rem;
 `;
 
-/* ========== Pre block ========== */
 const PreBlock = styled.pre`
   font-size: 1.3rem;
   background: var(--color-grey-50);
@@ -139,11 +136,12 @@ const PreBlock = styled.pre`
   overflow: auto;
 `;
 
-/* ========== SVG Card ========== */
+/* Graph card / SVG area */
 const SvgCard = styled(Card)`
   padding: 0;
   overflow: hidden;
 `;
+
 const SvgHeader = styled.div`
   display: flex;
   justify-content: space-between;
@@ -152,6 +150,7 @@ const SvgHeader = styled.div`
   padding: 1.2rem 1.6rem;
   border-bottom: 1px solid var(--color-grey-200);
 `;
+
 const Meta = styled.div`
   display: flex;
   gap: 0.8rem;
@@ -159,11 +158,11 @@ const Meta = styled.div`
   color: var(--color-grey-500);
   flex-wrap: wrap;
 `;
+
 const SvgWrap = styled.div`
   padding: 1.6rem;
 `;
 
-/* ========== Sliders, toggles, ghost buttons ========== */
 const ControlsBar = styled.div`
   display: flex;
   gap: 1.2rem;
@@ -198,7 +197,6 @@ const Slider = styled.input.attrs({ type: "range" })`
   margin: 0;
   outline: none;
 
-  /* Track */
   &::-webkit-slider-runnable-track {
     height: var(--track-h);
     border-radius: 999px;
@@ -222,7 +220,6 @@ const Slider = styled.input.attrs({ type: "range" })`
     );
   }
 
-  /* Thumb */
   &::-webkit-slider-thumb {
     appearance: none;
     width: var(--thumb-d);
@@ -255,11 +252,10 @@ const Slider = styled.input.attrs({ type: "range" })`
   }
 `;
 
-/* Small value bubble that follows the thumb */
 const ValueBubble = styled.span`
   position: absolute;
   top: -2.4rem;
-  left: ${({ $pct }) => `calc(${$pct}% - 1.2rem)`}; /* center bubble on thumb */
+  left: ${({ $pct }) => `calc(${$pct}% - 1.2rem)`};
   min-width: 2.4rem;
   padding: 0.1rem 0.6rem;
   font-size: 1.1rem;
@@ -275,16 +271,14 @@ const ValueBubble = styled.span`
     position: absolute;
     bottom: -0.36rem;
     left: 50%;
-    transform: translateX(-50%);
+    transform: translateX(-50%) rotate(45deg);
     width: 0.7rem;
     height: 0.7rem;
     background: var(--color-indigo-700);
-    transform: translateX(-50%) rotate(45deg);
     border-radius: 2px;
   }
 `;
 
-/* Toggle styled */
 const ToggleBox = styled.label`
   display: inline-flex;
   align-items: center;
@@ -317,6 +311,7 @@ const ToggleThumb = styled.span`
 const HiddenCheckbox = styled.input.attrs({ type: "checkbox" })`
   display: none;
 `;
+
 const GhostButton = styled(Button)`
   background: transparent;
   color: var(--color-grey-600);
@@ -326,7 +321,57 @@ const GhostButton = styled(Button)`
   }
 `;
 
-/* ========== SVG elements ========== */
+/* explanation box */
+const ExplainBox = styled.div`
+  margin-top: 1.6rem;
+  background: var(--color-grey-50);
+  border: 1px solid var(--color-grey-200);
+  border-radius: var(--border-radius-sm);
+  padding: 1rem 1.2rem;
+  font-size: 1.3rem;
+  line-height: 1.4;
+  color: var(--color-grey-700);
+`;
+
+const ExplainHeading = styled.div`
+  font-weight: 600;
+  font-size: 1.2rem;
+  color: var(--color-grey-600);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  margin-bottom: 0.4rem;
+`;
+
+/* ========= SVG primitives ========= */
+
+function getNodeStyleForLabel(struct, rawLabel) {
+  let fill = "var(--color-brand-600)";
+  let stroke = "rgba(0,0,0,0.25)";
+
+  if (struct === "RBT") {
+    const s = String(rawLabel);
+    // in rbt.js label is `${key}${color==="R"?"●":"○"}`
+    const hasRedDot = s.includes("●"); // red
+    const hasBlackDot = s.includes("○"); // black
+
+    let isRed = false;
+    let isBlack = false;
+    if (hasRedDot) isRed = true;
+    if (hasBlackDot) isBlack = true;
+    if (!isRed && !isBlack) isBlack = true;
+
+    if (isRed) {
+      fill = "#ef4444";
+      stroke = "#7f1d1d";
+    } else {
+      fill = "#1e1e3a";
+      stroke = "#0a0a1a";
+    }
+  }
+
+  return { fill, stroke };
+}
+
 const Svg = styled.svg`
   width: 100%;
   height: min(62vh, 560px);
@@ -334,26 +379,30 @@ const Svg = styled.svg`
   background: var(--color-grey-0);
   cursor: ${(p) => (p.$grabbing ? "grabbing" : "grab")};
   user-select: none;
+  border: 1px solid var(--color-grey-200);
+  border-radius: var(--border-radius-sm);
 `;
+
 const Edge = styled.line`
-  stroke: var(--color-grey-300);
+  stroke: rgba(148, 163, 184, 0.4);
   stroke-width: 1.5;
   stroke-linecap: round;
 `;
+
 const NodeCircle = styled.circle`
-  fill: var(--color-brand-600);
-  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.1));
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.4));
 `;
+
 const NodeText = styled.text`
   font-weight: 600;
   text-anchor: middle;
   dominant-baseline: middle;
-  font-size: ${(p) => p.$px}px;
-  fill: var(--color-grey-900);
+  fill: #e2e8f0;
 `;
 
-/* ========== Tree SVG with pan/zoom ========== */
-function TreeSVG({
+function OneTreeSVG({
+  title,
+  struct,
   edges,
   labels,
   pos,
@@ -396,74 +445,223 @@ function TreeSVG({
   const onUp = () => (dragging.current = false);
 
   return (
-    <Svg
-      viewBox={`0 0 ${w} ${h}`}
-      onMouseDown={onDown}
-      onMouseMove={onMove}
-      onMouseUp={onUp}
-      onMouseLeave={onUp}
-      $grabbing={dragging.current}
-      role="img"
-      aria-label="Search tree visualization"
-    >
-      <g transform={`translate(${tx},${ty}) scale(${zoom})`}>
-        {edges.map(([u, v], i) => {
-          const p1 = pos.get(u),
-            p2 = pos.get(v);
-          if (!p1 || !p2) return null;
-          return <Edge key={i} x1={p1.x} y1={p1.y} x2={p2.x} y2={p2.y} />;
-        })}
+    <div className="flex flex-col gap-2 min-w-[260px] flex-1">
+      <div
+        className="text-[12px] font-semibold text-[#475569] uppercase tracking-wide flex items-center gap-2"
+        style={{
+          lineHeight: 1.2,
+        }}
+      >
+        <div
+          style={{
+            width: "8px",
+            height: "8px",
+            borderRadius: "9999px",
+            background:
+              title === "Before"
+                ? "var(--color-red-600, #dc2626)"
+                : "var(--color-green-600, #16a34a)",
+          }}
+        />
+        {title}
+      </div>
 
-        {[...nodes].map((id) => {
-          const p = pos.get(id);
-          if (!p) return null;
-          const text = labels?.get(id) ?? id;
-          return (
-            <g key={id}>
-              <NodeCircle cx={p.x} cy={p.y} r={R} />
-              {showLabels && (
-                <NodeText x={p.x} y={p.y} $px={fontPx}>
-                  {text}
-                </NodeText>
-              )}
-              <title>key: {text}</title>
-            </g>
-          );
-        })}
-      </g>
-    </Svg>
+      <Svg
+        viewBox={`0 0 ${w} ${h}`}
+        onMouseDown={onDown}
+        onMouseMove={onMove}
+        onMouseUp={onUp}
+        onMouseLeave={onUp}
+        $grabbing={dragging.current}
+      >
+        <g transform={`translate(${tx},${ty}) scale(${zoom})`}>
+          {edges.map(([u, v], i) => {
+            const p1 = pos.get(u);
+            const p2 = pos.get(v);
+            if (!p1 || !p2) return null;
+            return <Edge key={i} x1={p1.x} y1={p1.y} x2={p2.x} y2={p2.y} />;
+          })}
+
+          {[...nodes].map((id) => {
+            const p = pos.get(id);
+            if (!p) return null;
+
+            const rawLabel = labels?.get(id) ?? id;
+            const { fill, stroke } = getNodeStyleForLabel(struct, rawLabel);
+
+            return (
+              <g key={id}>
+                <NodeCircle
+                  cx={p.x}
+                  cy={p.y}
+                  r={R}
+                  fill={fill}
+                  stroke={stroke}
+                  strokeWidth={1.5}
+                />
+                {showLabels && (
+                  <NodeText x={p.x} y={p.y} fontSize={fontPx}>
+                    {rawLabel}
+                  </NodeText>
+                )}
+              </g>
+            );
+          })}
+        </g>
+      </Svg>
+    </div>
   );
 }
 
-/* ========== Main ========== */
+const TwoCols = styled.div`
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.6rem;
+  width: 100%;
+  align-items: start;
+
+  @media (max-width: 900px) {
+    grid-template-columns: 1fr;
+  }
+`;
+
+/* ========= explanation builder ========= */
+
+/**
+ * buildBSTExplanation(actionType, value, beforeTreeRoot, afterTreeRoot)
+ * We give students a readable summary for BST.
+ */
+function buildBSTExplanation(actionType, value, beforeTree, afterTree) {
+  if (actionType === "insert") {
+    // Walk the afterTree from root to find where value sits and who is parent.
+    // We'll try to describe the path.
+    let path = [];
+    let cur = afterTree.root;
+    while (cur && cur.key !== value) {
+      path.push(cur.key);
+      cur = value < cur.key ? cur.left : cur.right;
+    }
+    let parentVal = null;
+    if (path.length > 0) parentVal = path[path.length - 1];
+
+    if (cur && cur.key === value) {
+      if (parentVal === null) {
+        return `BST insert ${value}: Tree was empty or ${value} became the root. No rotations in BST.`;
+      }
+      return `BST insert ${value}: followed BST rule (< left, > right) down the tree ${
+        path.length ? "through " + path.join(" → ") + ", " : ""
+      }and attached ${value} as a new ${
+        value < parentVal ? "left" : "right"
+      } child of ${parentVal}.`;
+    }
+
+    return `BST insert ${value}: inserted ${value} following BST ordering.`;
+  }
+
+  if (actionType === "delete") {
+    // We try to infer which case happened by comparing before/after
+    // Did the node still exist after?
+    const stillThere = (() => {
+      let cur = afterTree?.root;
+      while (cur) {
+        if (cur.key === value) return true;
+        cur = value < cur.key ? cur.left : cur.right;
+      }
+      return false;
+    })();
+
+    if (stillThere) {
+      // means it got replaced by successor's key (2-child case)
+      return `BST delete ${value}: node had two children. We copied its inorder successor into it, then removed the successor leaf.`;
+    }
+
+    // else it's gone:
+    return `BST delete ${value}: ${
+      "Removed node " +
+      value +
+      " (leaf or single-child case) and reconnected its child/subtree."
+    }`;
+  }
+
+  return "";
+}
+
+/**
+ * buildExplanation(struct, actionType, value, afterDS, beforeDS)
+ * AVL / RBT can use their debugSteps. BST we generate above.
+ */
+function buildExplanation(struct, actionType, value, afterDS, beforeDS) {
+  if (struct === "AVL") {
+    if (afterDS.debugSteps && afterDS.debugSteps.length) {
+      return afterDS.debugSteps.join(" → ");
+    }
+    return `AVL ${actionType} ${value}: Insert/delete then re-balance with rotations so every node stays with |bf| ≤ 1.`;
+  }
+
+  if (struct === "RBT") {
+    if (afterDS.debugSteps && afterDS.debugSteps.length) {
+      return afterDS.debugSteps.join(" → ");
+    }
+    return `RBT ${actionType} ${value}: Fix red-black violations by recoloring and (maybe) rotating to keep black-height balanced.`;
+  }
+
+  if (struct === "BST") {
+    return buildBSTExplanation(actionType, value, beforeDS, afterDS);
+  }
+
+  if (struct === "Heap") {
+    if (actionType === "insert") {
+      return `Heap insert ${value}: pushed ${value} to the end and bubbled it up to restore the max-heap property.`;
+    } else {
+      return `Heap extract/delete: removed the root (max), moved last element to root, then bubbled down.`;
+    }
+  }
+
+  return "";
+}
+
+/* ========= MAIN ========= */
+
 export default function TP2SearchTrees() {
+  // structure type
   const [struct, setStruct] = useState("BST");
+
+  // textarea = source of truth
   const [text, setText] = useState("10,4,12,7,3,9,11,2,14");
 
-  // numeric & string mirrors
+  // inputs
   const [op, setOp] = useState(5);
+  const [opStr, setOpStr] = useState("5");
+
   const [genN, setGenN] = useState(15);
+  const [genNStr, setGenNStr] = useState("15");
+
   const [genMin, setGenMin] = useState(0);
+  const [genMinStr, setGenMinStr] = useState("0");
+
   const [genMax, setGenMax] = useState(100);
-  const [opStr, setOpStr] = useState(String(op));
-  const [genNStr, setGenNStr] = useState(String(genN));
-  const [genMinStr, setGenMinStr] = useState(String(genMin));
-  const [genMaxStr, setGenMaxStr] = useState(String(genMax));
+  const [genMaxStr, setGenMaxStr] = useState("100");
 
-  // small inline error for Value field
   const [opError, setOpError] = useState("");
-
-  // heap info
   const [lastExtracted, setLastExtracted] = useState(null);
 
-  // view controls
+  // view / camera
   const [zoom, setZoom] = useState(1);
   const [nodeScale, setNodeScale] = useState(1);
   const [showLabels, setShowLabels] = useState(true);
   const [tx, setTx] = useState(0);
   const [ty, setTy] = useState(0);
 
-  // fit-to-view support
+  // explanation state
+  const [explanation, setExplanation] = useState(null);
+
+  // for building explanation we need DS before change
+  const [dsBeforeOp, setDsBeforeOp] = useState(null);
+
+  // before/after tree frames
+  const [prevTreeFrame, setPrevTreeFrame] = useState(null);
+
+  // measure area for fitToView
   const wrapRef = useRef(null);
   const [wrapSize, setWrapSize] = useState({ w: 800, h: 420 });
   useLayoutEffect(() => {
@@ -478,22 +676,20 @@ export default function TP2SearchTrees() {
     return () => ro.disconnect();
   }, []);
 
-  // parse list (already deduped)
-  const nums = useMemo(
-    () =>
-      Array.from(
-        new Set(
-          text
-            .replace(/,/g, "\n")
-            .split(/\s+/)
-            .map(Number)
-            .filter((n) => !Number.isNaN(n))
-        )
-      ),
-    [text]
-  );
+  // parse text -> unique nums
+  const nums = useMemo(() => {
+    return Array.from(
+      new Set(
+        text
+          .replace(/,/g, "\n")
+          .split(/\s+/)
+          .map(Number)
+          .filter((n) => !Number.isNaN(n))
+      )
+    );
+  }, [text]);
 
-  // build base structure
+  // base DS from nums
   const base = useMemo(() => {
     if (struct === "BST") {
       const t = new BST();
@@ -505,33 +701,63 @@ export default function TP2SearchTrees() {
       nums.forEach((n) => t.insert(n));
       return t;
     }
+    if (struct === "RBT") {
+      const t = new RBT();
+      nums.forEach((n) => t.insert(n));
+      return t;
+    }
     const h = new BinaryHeap();
     nums.forEach((n) => h.insert(n));
     return h;
   }, [struct, nums]);
 
-  // ephemeral view after op
+  // potentially mutated view
   const [view, setView] = useState(null);
   const current = view ?? base;
 
-  // graph + layout
-  const graphData = useMemo(() => {
+  // graph/layout for current
+  const currGraph = useMemo(() => {
     if (struct === "Heap") return { edges: [], labels: new Map(), root: null };
     return current.graph();
   }, [current, struct]);
-  const pos = useMemo(() => {
-    if (struct === "Heap") return new Map();
-    return treePositions(graphData.edges, graphData.root);
-  }, [graphData, struct]);
 
-  // inorder fallback so AVL works even if it has no inorder()
+  const currPos = useMemo(() => {
+    if (struct === "Heap") return new Map();
+    return treePositions(currGraph.edges, currGraph.root);
+  }, [currGraph, struct]);
+
+  const currTreeFrame = useMemo(() => {
+    return {
+      edges: currGraph.edges,
+      labels: currGraph.labels,
+      pos: currPos,
+    };
+  }, [currGraph, currPos]);
+
+  // metrics
   const inorderValues = useMemo(() => {
     if (struct === "Heap") return [];
     if (typeof current.inorder === "function") return current.inorder();
-    return sortedValuesFromGraph(graphData);
-  }, [current, graphData, struct]);
+    return sortedValuesFromGraph(currGraph);
+  }, [current, currGraph, struct]);
 
-  // fit to view
+  // membership
+  const valueExistsInCurrent = (val) => {
+    if (struct === "Heap") {
+      return (current?.a ?? []).includes(val);
+    }
+    const setVals = new Set(sortedValuesFromGraph(currGraph));
+    return setVals.has(val);
+  };
+
+  // sync textarea with DS
+  const syncTextFrom = (instance) => {
+    const g = instance?.graph?.() ?? currGraph;
+    const next = textFromStructure(struct, instance, g);
+    setText(next);
+  };
+
+  // camera helpers
   const fitToView = () => {
     if (struct === "Heap") {
       setTx(0);
@@ -539,8 +765,8 @@ export default function TP2SearchTrees() {
       setZoom(1);
       return;
     }
-    const contentW = pos._bounds?.width ?? 900;
-    const contentH = pos._bounds?.height ?? 420;
+    const contentW = currPos._bounds?.width ?? 900;
+    const contentH = currPos._bounds?.height ?? 420;
     const scale = Math.max(
       0.4,
       Math.min(2, 0.92 * Math.min(wrapSize.w / contentW, wrapSize.h / contentH))
@@ -551,69 +777,89 @@ export default function TP2SearchTrees() {
     setTx(dx);
     setTy(dy);
   };
+
   const resetView = () => {
     setZoom(1);
     setTx(0);
     setTy(0);
   };
 
-  // existence helpers
-  const valueExistsInCurrent = (val) => {
-    if (struct === "Heap") {
-      return (current?.a ?? []).includes(val);
-    }
-    const set = new Set(sortedValuesFromGraph(graphData));
-    return set.has(val);
-  };
+  // Snapshot "before" frame + DS
+  function snapshotBeforeMutation() {
+    setPrevTreeFrame({
+      edges: currTreeFrame.edges,
+      labels: currTreeFrame.labels,
+      pos: currTreeFrame.pos,
+    });
+    setDsBeforeOp(current);
+  }
 
-  const syncTextFrom = (instance) => {
-    const next = textFromStructure(
-      struct,
-      instance,
-      instance?.graph?.() ?? graphData
-    );
-    setText(next);
-  };
-
-  // operations — prevent duplicates
+  // INSERT
   const applyInsert = () => {
     setOpError("");
+
     if (valueExistsInCurrent(op)) {
       setOpError(`Value ${op} already exists.`);
       return;
     }
 
+    // record BEFORE state
+    snapshotBeforeMutation();
+
     if (struct === "Heap") {
       const h = new BinaryHeap();
       nums.forEach((n) => h.insert(n));
       h.insert(op);
+
       setLastExtracted(null);
       setView(h);
       setText(h.a.join(","));
+
+      // explanation for heap insert
+      setExplanation(
+        buildExplanation(struct, "insert", op, h, dsBeforeOp ?? current)
+      );
       return;
     }
 
-    const T = struct === "BST" ? BST : AVL;
+    const T = struct === "BST" ? BST : struct === "AVL" ? AVL : RBT;
     const t = new T();
     nums.forEach((n) => t.insert(n));
     t.insert(op);
+
     setView(t);
     syncTextFrom(t);
+
+    // explanation for tree insert
+    setExplanation(
+      buildExplanation(struct, "insert", op, t, dsBeforeOp ?? current)
+    );
   };
 
+  // DELETE (or heap extract)
   const applyDelete = () => {
     setOpError("");
+
+    // record BEFORE state
+    snapshotBeforeMutation();
+
     if (struct === "Heap") {
       if ((current?.a ?? []).length === 0) {
         setOpError("Heap is empty.");
         return;
       }
+
       const h = new BinaryHeap();
       nums.forEach((n) => h.insert(n));
       const ex = h.extractMax();
+
       setLastExtracted(ex);
       setView(h);
       setText(h.a.join(","));
+
+      setExplanation(
+        buildExplanation(struct, "delete", op, h, dsBeforeOp ?? current)
+      );
       return;
     }
 
@@ -621,36 +867,59 @@ export default function TP2SearchTrees() {
       setOpError(`Value ${op} not found in the tree.`);
       return;
     }
-    const T = struct === "BST" ? BST : AVL;
+
+    const T = struct === "BST" ? BST : struct === "AVL" ? AVL : RBT;
     const t = new T();
     nums.forEach((n) => t.insert(n));
     t.delete(op);
+
     setView(t);
     syncTextFrom(t);
+
+    setExplanation(
+      buildExplanation(struct, "delete", op, t, dsBeforeOp ?? current)
+    );
   };
 
-  // generator — unique only
+  // generate random data
   const generate = () => {
+    const N = Math.max(1, Math.min(1000, genN));
     const min = Math.min(genMin, genMax);
     const max = Math.max(genMin, genMax);
-    const range = max - min + 1;
-    const need = Math.max(1, Math.min(genN, Math.min(1000, range))); // cap by range size
-    const set = new Set();
-    // sample without replacement
-    while (set.size < need) {
-      set.add(Math.floor(Math.random() * range) + min);
-    }
-    const arr = Array.from(set);
-    setText(arr.join(","));
+    const arr = Array.from(
+      { length: N },
+      () => Math.floor(Math.random() * (max - min + 1)) + min
+    );
+    const uniqueArr = Array.from(new Set(arr));
+
+    setText(uniqueArr.join(","));
     setView(null);
     setLastExtracted(null);
     setOpError("");
+    setPrevTreeFrame(null);
+    setExplanation(null);
+    setDsBeforeOp(null);
   };
+
+  // reset from textarea / change struct
+  function hardResetFromTextarea(newStructValue = null) {
+    if (newStructValue !== null) setStruct(newStructValue);
+    setView(null);
+    setLastExtracted(null);
+    setOpError("");
+    setPrevTreeFrame(null);
+    setExplanation(null);
+    setDsBeforeOp(null);
+  }
+
+  // pick frames for Before / After
+  const leftFrame = prevTreeFrame ?? currTreeFrame;
+  const rightFrame = currTreeFrame;
 
   return (
     <>
       <PageStack>
-        {/* ===== Row 1: Controls + Metrics ===== */}
+        {/* CONTROLS + METRICS */}
         <Card>
           <SectionTitle>Controls</SectionTitle>
 
@@ -658,14 +927,12 @@ export default function TP2SearchTrees() {
             <Select
               value={struct}
               onChange={(e) => {
-                setStruct(e.target.value);
-                setView(null);
-                setLastExtracted(null);
-                setOpError("");
+                hardResetFromTextarea(e.target.value);
               }}
               options={[
                 { value: "BST", label: "BST" },
                 { value: "AVL", label: "AVL" },
+                { value: "RBT", label: "Red-Black" },
                 { value: "Heap", label: "Heap (max)" },
               ]}
             />
@@ -691,10 +958,7 @@ export default function TP2SearchTrees() {
             <ButtonGroup>
               <Button
                 onClick={() => {
-                  setView(null);
-                  setLastExtracted(null);
-                  setOpError("");
-                  // textarea is source of truth; build happens reactively
+                  hardResetFromTextarea();
                 }}
               >
                 Build from list
@@ -725,6 +989,7 @@ export default function TP2SearchTrees() {
                     aria-label="Count N"
                   />
                 </Field>
+
                 <Field>
                   <Label>Min</Label>
                   <Input
@@ -740,6 +1005,7 @@ export default function TP2SearchTrees() {
                     aria-label="Minimum"
                   />
                 </Field>
+
                 <Field>
                   <Label>Max</Label>
                   <Input
@@ -755,6 +1021,7 @@ export default function TP2SearchTrees() {
                     aria-label="Maximum"
                   />
                 </Field>
+
                 <Button onClick={generate}>Generate vector</Button>
               </RowWrap>
 
@@ -763,11 +1030,8 @@ export default function TP2SearchTrees() {
                 rows={5}
                 value={text}
                 onChange={(e) => {
-                  // Immediately de-duplicate input list (order-preserving)
-                  setText(dedupeListString(e.target.value));
-                  setView(null);
-                  setLastExtracted(null);
-                  setOpError("");
+                  setText(e.target.value);
+                  hardResetFromTextarea();
                 }}
               />
             </div>
@@ -794,6 +1058,7 @@ export default function TP2SearchTrees() {
               ) : (
                 <>
                   <DataItem label="Height">{current.height()}</DataItem>
+
                   <Label>BFS Levels</Label>
                   <PreBlock>
                     {JSON.stringify(current.bfsLevels(), null, 2)}
@@ -811,16 +1076,19 @@ export default function TP2SearchTrees() {
           </GridTwo>
         </Card>
 
-        {/* ===== Row 2: Visualization ===== */}
+        {/* VISUALIZATION */}
         <SvgCard>
           <SvgHeader>
             <strong>Visualization</strong>
             <Meta>
-              <span>Structure: {struct}</span>
+              <span>
+                Structure:{" "}
+                {struct === "RBT" ? "RBT" : struct === "Heap" ? "Heap" : struct}
+              </span>
               {struct !== "Heap" && (
                 <>
-                  <span>Nodes: {graphData?.labels?.size ?? 0}</span>
-                  <span>Edges: {graphData?.edges?.length ?? 0}</span>
+                  <span>Nodes: {currTreeFrame.labels?.size ?? 0}</span>
+                  <span>Edges: {currTreeFrame.edges?.length ?? 0}</span>
                 </>
               )}
             </Meta>
@@ -878,7 +1146,7 @@ export default function TP2SearchTrees() {
               </Group>
 
               <GhostButton onClick={fitToView}>Fit to view</GhostButton>
-              <GhostButton onClick={resetView}>Reset</GhostButton>
+              <GhostButton onClick={resetView}>Reset camera</GhostButton>
             </ControlsBar>
 
             {struct === "Heap" ? (
@@ -891,18 +1159,48 @@ export default function TP2SearchTrees() {
                 </Chips>
               </Card>
             ) : (
-              <TreeSVG
-                edges={graphData.edges}
-                labels={graphData.labels}
-                pos={pos}
-                zoom={zoom}
-                nodeScale={nodeScale}
-                showLabels={showLabels}
-                tx={tx}
-                ty={ty}
-                setTx={setTx}
-                setTy={setTy}
-              />
+              <>
+                <TwoCols>
+                  <OneTreeSVG
+                    title="Before"
+                    struct={struct}
+                    edges={leftFrame.edges}
+                    labels={leftFrame.labels}
+                    pos={leftFrame.pos}
+                    zoom={zoom}
+                    nodeScale={nodeScale}
+                    showLabels={showLabels}
+                    tx={tx}
+                    ty={ty}
+                    setTx={setTx}
+                    setTy={setTy}
+                  />
+
+                  <OneTreeSVG
+                    title="After"
+                    struct={struct}
+                    edges={rightFrame.edges}
+                    labels={rightFrame.labels}
+                    pos={rightFrame.pos}
+                    zoom={zoom}
+                    nodeScale={nodeScale}
+                    showLabels={showLabels}
+                    tx={tx}
+                    ty={ty}
+                    setTx={setTx}
+                    setTy={setTy}
+                  />
+                </TwoCols>
+
+                <ExplainBox>
+                  <ExplainHeading>Why did the tree change?</ExplainHeading>
+                  <div>
+                    {explanation
+                      ? explanation
+                      : "No operation yet. Insert or delete a value to see balancing steps / rotations."}
+                  </div>
+                </ExplainBox>
+              </>
             )}
           </SvgWrap>
         </SvgCard>

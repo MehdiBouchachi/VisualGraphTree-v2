@@ -6,36 +6,43 @@ class AvlNode {
     this.h = 0;
   }
 }
+
 const H = (n) => (n ? n.h : -1);
 const upd = (n) => {
   n.h = 1 + Math.max(H(n.left), H(n.right));
 };
 const bf = (n) => (n ? H(n.left) - H(n.right) : 0);
-const rotR = (y) => {
-  const x = y.left,
-    T2 = x?.right || null;
+
+function rotR(y) {
+  const x = y.left;
+  const T2 = x?.right || null;
   x.right = y;
   y.left = T2;
   upd(y);
   upd(x);
   return x;
-};
-const rotL = (x) => {
-  const y = x.right,
-    T2 = y?.left || null;
+}
+
+function rotL(x) {
+  const y = x.right;
+  const T2 = y?.left || null;
   y.left = x;
   x.right = T2;
   upd(x);
   upd(y);
   return y;
-};
+}
 
 export class AVL {
   constructor() {
     this.root = null;
+    this.debugSteps = []; // <- NEW
   }
 
   insert(key) {
+    // reset debug steps for this operation
+    this.debugSteps = [`Insert ${key}`];
+
     const ins = (n, k) => {
       if (!n) return new AvlNode(k);
       if (k < n.key) n.left = ins(n.left, k);
@@ -43,46 +50,97 @@ export class AVL {
       upd(n);
       return this._reb(n);
     };
+
     this.root = ins(this.root, key);
   }
+
   delete(key) {
+    this.debugSteps = [`Delete ${key}`];
+
     const min = (n) => {
       let c = n;
       while (c.left) c = c.left;
       return c;
     };
+
     const del = (n, k) => {
       if (!n) return null;
-      if (k < n.key) n.left = del(n.left, k);
-      else if (k > n.key) n.right = del(n.right, k);
-      else {
-        if (!n.left) return n.right;
-        if (!n.right) return n.left;
-        const s = min(n.right);
-        n.key = s.key;
-        n.right = del(n.right, s.key);
+      if (k < n.key) {
+        n.left = del(n.left, k);
+      } else if (k > n.key) {
+        n.right = del(n.right, k);
+      } else {
+        // found node to delete
+        if (!n.left && !n.right) {
+          this.debugSteps.push(`Removed leaf ${n.key}`);
+          return null;
+        } else if (!n.left || !n.right) {
+          this.debugSteps.push(
+            `Removed ${n.key} with 1 child (promoted its child)`
+          );
+          return n.left || n.right;
+        } else {
+          const s = min(n.right);
+          this.debugSteps.push(
+            `Removed ${n.key} with 2 children, replaced with inorder successor ${s.key}`
+          );
+          n.key = s.key;
+          n.right = del(n.right, s.key);
+        }
       }
       upd(n);
       return this._reb(n);
     };
+
     this.root = del(this.root, key);
   }
+
   _reb(n) {
     const B = bf(n);
+
+    // Left heavy
     if (B > 1) {
-      if (bf(n.left) < 0) n.left = rotL(n.left);
-      return rotR(n);
-    } // LL/LR
+      // Left-Right
+      if (bf(n.left) < 0) {
+        this.debugSteps.push(
+          `Left-Right case at ${n.key}: rotate left on ${n.left.key}, then rotate right on ${n.key}`
+        );
+        n.left = rotL(n.left);
+        return rotR(n);
+      } else {
+        // Left-Left
+        this.debugSteps.push(
+          `Right rotation at ${n.key} (Left-Left case, balance=${B})`
+        );
+        return rotR(n);
+      }
+    }
+
+    // Right heavy
     if (B < -1) {
-      if (bf(n.right) > 0) n.right = rotR(n.right);
-      return rotL(n);
-    } // RR/RL
+      // Right-Left
+      if (bf(n.right) > 0) {
+        this.debugSteps.push(
+          `Right-Left case at ${n.key}: rotate right on ${n.right.key}, then rotate left on ${n.key}`
+        );
+        n.right = rotR(n.right);
+        return rotL(n);
+      } else {
+        // Right-Right
+        this.debugSteps.push(
+          `Left rotation at ${n.key} (Right-Right case, balance=${B})`
+        );
+        return rotL(n);
+      }
+    }
+
     return n;
   }
 
   height() {
     return H(this.root);
   }
+
   bfsLevels() {
     const lv = [];
     if (!this.root) return lv;
@@ -95,11 +153,22 @@ export class AVL {
     }
     return lv;
   }
-  // Add this new method
+
+  inorder() {
+    const out = [];
+    (function dfs(n) {
+      if (!n) return;
+      dfs(n.left);
+      out.push(n.key);
+      dfs(n.right);
+    })(this.root);
+    return out;
+  }
+
   graph() {
     const edges = [];
     const labels = new Map();
-    const idOf = new Map(); // node object -> unique id
+    const idOf = new Map();
     let counter = 0;
 
     const getId = (node) => {
@@ -130,9 +199,6 @@ export class AVL {
     return { edges, labels, root: getId(this.root) };
   }
 
-  // (Optional) Keep a backward-compatible edges() that uses unique ids
-
-  // >>> IMPORTANT for drawing
   edges() {
     return this.graph().edges;
   }
