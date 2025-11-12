@@ -342,6 +342,14 @@ const ExplainHeading = styled.div`
   margin-bottom: 0.4rem;
 `;
 
+const StatusLine = styled.div`
+  font-size: 1.2rem;
+  margin-top: 0.6rem;
+  color: ${(p) =>
+    p.$ok ? "var(--color-green-700,#15803d)" : "var(--color-red-700,#b91c1c)"};
+  font-weight: 500;
+`;
+
 /* ========= SVG primitives ========= */
 
 function getNodeStyleForLabel(struct, rawLabel) {
@@ -350,9 +358,9 @@ function getNodeStyleForLabel(struct, rawLabel) {
 
   if (struct === "RBT") {
     const s = String(rawLabel);
-    // in rbt.js label is `${key}${color==="R"?"●":"○"}`
-    const hasRedDot = s.includes("●"); // red
-    const hasBlackDot = s.includes("○"); // black
+    // we label like "10●" (red) or "10○" (black)
+    const hasRedDot = s.includes("●");
+    const hasBlackDot = s.includes("○");
 
     let isRed = false;
     let isBlack = false;
@@ -525,84 +533,65 @@ const TwoCols = styled.div`
   }
 `;
 
-/* ========= explanation builder ========= */
+/* ========= explanation builders ========= */
 
-/**
- * buildBSTExplanation(actionType, value, beforeTreeRoot, afterTreeRoot)
- * We give students a readable summary for BST.
- */
 function buildBSTExplanation(actionType, value, beforeTree, afterTree) {
   if (actionType === "insert") {
-    // Walk the afterTree from root to find where value sits and who is parent.
-    // We'll try to describe the path.
+    // Find new node in afterTree, describe path.
     let path = [];
     let cur = afterTree.root;
     while (cur && cur.key !== value) {
       path.push(cur.key);
       cur = value < cur.key ? cur.left : cur.right;
     }
-    let parentVal = null;
-    if (path.length > 0) parentVal = path[path.length - 1];
-
     if (cur && cur.key === value) {
+      const parentVal = path.length ? path[path.length - 1] : null;
       if (parentVal === null) {
-        return `BST insert ${value}: Tree was empty or ${value} became the root. No rotations in BST.`;
+        return `BST insert ${value}: ${value} became the root (tree was empty or rotated root manually later). BST never rotates automatically.`;
       }
-      return `BST insert ${value}: followed BST rule (< left, > right) down the tree ${
-        path.length ? "through " + path.join(" → ") + ", " : ""
-      }and attached ${value} as a new ${
+      return `BST insert ${value}: followed "< left / > right" down ${
+        path.length ? path.join(" → ") + " → " : ""
+      }and attached ${value} as ${
         value < parentVal ? "left" : "right"
-      } child of ${parentVal}.`;
+      } child of ${parentVal}. No balancing/rotations in BST.`;
     }
-
-    return `BST insert ${value}: inserted ${value} following BST ordering.`;
+    return `BST insert ${value}: inserted following BST ordering rules.`;
   }
 
   if (actionType === "delete") {
-    // We try to infer which case happened by comparing before/after
-    // Did the node still exist after?
+    // check if 'value' still exists -> if yes, we replaced key not pointer
     const stillThere = (() => {
-      let cur = afterTree?.root;
-      while (cur) {
-        if (cur.key === value) return true;
-        cur = value < cur.key ? cur.left : cur.right;
+      let c = afterTree?.root;
+      while (c) {
+        if (c.key === value) return true;
+        c = value < c.key ? c.left : c.right;
       }
       return false;
     })();
 
     if (stillThere) {
-      // means it got replaced by successor's key (2-child case)
-      return `BST delete ${value}: node had two children. We copied its inorder successor into it, then removed the successor leaf.`;
+      return `BST delete ${value}: this node had 2 children; copied inorder successor into it, then removed the successor leaf.`;
     }
 
-    // else it's gone:
-    return `BST delete ${value}: ${
-      "Removed node " +
-      value +
-      " (leaf or single-child case) and reconnected its child/subtree."
-    }`;
+    return `BST delete ${value}: removed ${value} (leaf or single-child case) and reconnected its subtree up to the parent.`;
   }
 
   return "";
 }
 
-/**
- * buildExplanation(struct, actionType, value, afterDS, beforeDS)
- * AVL / RBT can use their debugSteps. BST we generate above.
- */
 function buildExplanation(struct, actionType, value, afterDS, beforeDS) {
   if (struct === "AVL") {
     if (afterDS.debugSteps && afterDS.debugSteps.length) {
       return afterDS.debugSteps.join(" → ");
     }
-    return `AVL ${actionType} ${value}: Insert/delete then re-balance with rotations so every node stays with |bf| ≤ 1.`;
+    return `AVL ${actionType} ${value}: rebalanced using rotations so every node's balance factor stays in [-1,1].`;
   }
 
   if (struct === "RBT") {
     if (afterDS.debugSteps && afterDS.debugSteps.length) {
       return afterDS.debugSteps.join(" → ");
     }
-    return `RBT ${actionType} ${value}: Fix red-black violations by recoloring and (maybe) rotating to keep black-height balanced.`;
+    return `RBT ${actionType} ${value}: fixed red-black rules with recolor and rotations (maintain equal black-height).`;
   }
 
   if (struct === "BST") {
@@ -611,9 +600,9 @@ function buildExplanation(struct, actionType, value, afterDS, beforeDS) {
 
   if (struct === "Heap") {
     if (actionType === "insert") {
-      return `Heap insert ${value}: pushed ${value} to the end and bubbled it up to restore the max-heap property.`;
+      return `Heap insert ${value}: appended ${value} at the end and bubbled it up until parent ≥ child (max-heap).`;
     } else {
-      return `Heap extract/delete: removed the root (max), moved last element to root, then bubbled down.`;
+      return `Heap extract/delete: removed max at root, moved last element to root, then bubbled down to restore heap property.`;
     }
   }
 
@@ -623,13 +612,9 @@ function buildExplanation(struct, actionType, value, afterDS, beforeDS) {
 /* ========= MAIN ========= */
 
 export default function TP2SearchTrees() {
-  // structure type
-  const [struct, setStruct] = useState("BST");
-
-  // textarea = source of truth
+  const [struct, setStruct] = useState("RBT");
   const [text, setText] = useState("10,4,12,7,3,9,11,2,14");
 
-  // inputs
   const [op, setOp] = useState(5);
   const [opStr, setOpStr] = useState("5");
 
@@ -645,23 +630,24 @@ export default function TP2SearchTrees() {
   const [opError, setOpError] = useState("");
   const [lastExtracted, setLastExtracted] = useState(null);
 
-  // view / camera
+  // camera
   const [zoom, setZoom] = useState(1);
   const [nodeScale, setNodeScale] = useState(1);
   const [showLabels, setShowLabels] = useState(true);
   const [tx, setTx] = useState(0);
   const [ty, setTy] = useState(0);
 
-  // explanation state
+  // explanation + RBT validity status
   const [explanation, setExplanation] = useState(null);
+  const [rbStatus, setRbStatus] = useState(null); // { ok, problems } or null
 
-  // for building explanation we need DS before change
+  // we store DS before mutation for better explanation text
   const [dsBeforeOp, setDsBeforeOp] = useState(null);
 
-  // before/after tree frames
+  // we store the "before" snapshot frame for Before/After view
   const [prevTreeFrame, setPrevTreeFrame] = useState(null);
 
-  // measure area for fitToView
+  // measure area to do "fitToView"
   const wrapRef = useRef(null);
   const [wrapSize, setWrapSize] = useState({ w: 800, h: 420 });
   useLayoutEffect(() => {
@@ -676,7 +662,7 @@ export default function TP2SearchTrees() {
     return () => ro.disconnect();
   }, []);
 
-  // parse text -> unique nums
+  // parse textarea to unique sorted values
   const nums = useMemo(() => {
     return Array.from(
       new Set(
@@ -689,7 +675,7 @@ export default function TP2SearchTrees() {
     );
   }, [text]);
 
-  // base DS from nums
+  // base data structure built fresh from nums
   const base = useMemo(() => {
     if (struct === "BST") {
       const t = new BST();
@@ -711,11 +697,11 @@ export default function TP2SearchTrees() {
     return h;
   }, [struct, nums]);
 
-  // potentially mutated view
+  // transient mutated DS (after op)
   const [view, setView] = useState(null);
   const current = view ?? base;
 
-  // graph/layout for current
+  // build graph + layout for current DS (BST/AVL/RBT)
   const currGraph = useMemo(() => {
     if (struct === "Heap") return { edges: [], labels: new Map(), root: null };
     return current.graph();
@@ -734,14 +720,14 @@ export default function TP2SearchTrees() {
     };
   }, [currGraph, currPos]);
 
-  // metrics
+  // metrics from current DS
   const inorderValues = useMemo(() => {
     if (struct === "Heap") return [];
     if (typeof current.inorder === "function") return current.inorder();
     return sortedValuesFromGraph(currGraph);
   }, [current, currGraph, struct]);
 
-  // membership
+  // membership check
   const valueExistsInCurrent = (val) => {
     if (struct === "Heap") {
       return (current?.a ?? []).includes(val);
@@ -750,7 +736,7 @@ export default function TP2SearchTrees() {
     return setVals.has(val);
   };
 
-  // sync textarea with DS
+  // keep textarea synced after ops
   const syncTextFrom = (instance) => {
     const g = instance?.graph?.() ?? currGraph;
     const next = textFromStructure(struct, instance, g);
@@ -784,7 +770,7 @@ export default function TP2SearchTrees() {
     setTy(0);
   };
 
-  // Snapshot "before" frame + DS
+  // snapshot BEFORE frame + DS
   function snapshotBeforeMutation() {
     setPrevTreeFrame({
       edges: currTreeFrame.edges,
@@ -792,6 +778,13 @@ export default function TP2SearchTrees() {
       pos: currTreeFrame.pos,
     });
     setDsBeforeOp(current);
+  }
+
+  // helper: run validator if RBT, else null
+  function computeRbStatus(ds) {
+    if (struct !== "RBT") return null;
+    if (!ds || typeof ds.checkValidity !== "function") return null;
+    return ds.checkValidity();
   }
 
   // INSERT
@@ -803,22 +796,20 @@ export default function TP2SearchTrees() {
       return;
     }
 
-    // record BEFORE state
     snapshotBeforeMutation();
 
     if (struct === "Heap") {
       const h = new BinaryHeap();
       nums.forEach((n) => h.insert(n));
       h.insert(op);
-
       setLastExtracted(null);
       setView(h);
       setText(h.a.join(","));
 
-      // explanation for heap insert
       setExplanation(
         buildExplanation(struct, "insert", op, h, dsBeforeOp ?? current)
       );
+      setRbStatus(null); // heap doesn't have rbStatus
       return;
     }
 
@@ -830,17 +821,16 @@ export default function TP2SearchTrees() {
     setView(t);
     syncTextFrom(t);
 
-    // explanation for tree insert
     setExplanation(
       buildExplanation(struct, "insert", op, t, dsBeforeOp ?? current)
     );
+    setRbStatus(computeRbStatus(t));
   };
 
-  // DELETE (or heap extract)
+  // DELETE / EXTRACT
   const applyDelete = () => {
     setOpError("");
 
-    // record BEFORE state
     snapshotBeforeMutation();
 
     if (struct === "Heap") {
@@ -848,11 +838,9 @@ export default function TP2SearchTrees() {
         setOpError("Heap is empty.");
         return;
       }
-
       const h = new BinaryHeap();
       nums.forEach((n) => h.insert(n));
       const ex = h.extractMax();
-
       setLastExtracted(ex);
       setView(h);
       setText(h.a.join(","));
@@ -860,6 +848,7 @@ export default function TP2SearchTrees() {
       setExplanation(
         buildExplanation(struct, "delete", op, h, dsBeforeOp ?? current)
       );
+      setRbStatus(null);
       return;
     }
 
@@ -879,9 +868,10 @@ export default function TP2SearchTrees() {
     setExplanation(
       buildExplanation(struct, "delete", op, t, dsBeforeOp ?? current)
     );
+    setRbStatus(computeRbStatus(t));
   };
 
-  // generate random data
+  // generate random values
   const generate = () => {
     const N = Math.max(1, Math.min(1000, genN));
     const min = Math.min(genMin, genMax);
@@ -899,9 +889,10 @@ export default function TP2SearchTrees() {
     setPrevTreeFrame(null);
     setExplanation(null);
     setDsBeforeOp(null);
+    setRbStatus(null);
   };
 
-  // reset from textarea / change struct
+  // complete reset (switch struct or rebuild from list)
   function hardResetFromTextarea(newStructValue = null) {
     if (newStructValue !== null) setStruct(newStructValue);
     setView(null);
@@ -910,9 +901,10 @@ export default function TP2SearchTrees() {
     setPrevTreeFrame(null);
     setExplanation(null);
     setDsBeforeOp(null);
+    setRbStatus(null);
   }
 
-  // pick frames for Before / After
+  // pick which frames to display
   const leftFrame = prevTreeFrame ?? currTreeFrame;
   const rightFrame = currTreeFrame;
 
@@ -930,9 +922,10 @@ export default function TP2SearchTrees() {
                 hardResetFromTextarea(e.target.value);
               }}
               options={[
-                { value: "BST", label: "BST" },
-                { value: "AVL", label: "AVL" },
                 { value: "RBT", label: "Red-Black" },
+                { value: "AVL", label: "AVL" },
+
+                { value: "BST", label: "BST" },
                 { value: "Heap", label: "Heap (max)" },
               ]}
             />
@@ -1199,6 +1192,28 @@ export default function TP2SearchTrees() {
                       ? explanation
                       : "No operation yet. Insert or delete a value to see balancing steps / rotations."}
                   </div>
+
+                  <StatusLine $ok={rbStatus?.ok ?? true}>
+                    {struct === "RBT" ? (
+                      rbStatus ? (
+                        rbStatus.ok ? (
+                          <>Red-Black status: OK ✅ Black-height consistent.</>
+                        ) : (
+                          <>
+                            Red-Black status: ❌ {rbStatus.problems.join(" | ")}
+                          </>
+                        )
+                      ) : (
+                        "Red-Black status: N/A (no operation yet)"
+                      )
+                    ) : struct === "AVL" ? (
+                      "AVL status: height-balanced by rotations (bf in [-1,1])"
+                    ) : struct === "BST" ? (
+                      "BST status: no balancing (can become skewed)"
+                    ) : (
+                      "Heap status: parent ≥ child (max-heap)"
+                    )}
+                  </StatusLine>
                 </ExplainBox>
               </>
             )}

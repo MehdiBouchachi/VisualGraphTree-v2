@@ -1,9 +1,11 @@
 import { NavLink } from "react-router-dom";
 import styled from "styled-components";
 import {
-  HiOutlineChartBar,
-  HiOutlineRectangleStack,
-  HiOutlineMagnifyingGlass,
+  HiOutlinePresentationChartBar,
+  HiOutlineRectangleGroup,
+  HiOutlineMagnifyingGlassCircle,
+  HiOutlineBarsArrowDown,
+  HiOutlineScale,
 } from "react-icons/hi2";
 
 const NavList = styled.ul`
@@ -60,7 +62,6 @@ const StyledNavLink = styled(NavLink)`
     color: var(--color-brand-600);
   }
 
-  /* Small secondary line for module label (TPx) */
   & span small {
     display: block;
     font-size: 1.1rem;
@@ -77,7 +78,7 @@ function MainNav() {
       <NavList>
         <li>
           <StyledNavLink to="/graphs">
-            <HiOutlineChartBar />
+            <HiOutlinePresentationChartBar />
             <span>
               Graphs Studio
               <small>TP1</small>
@@ -87,7 +88,7 @@ function MainNav() {
 
         <li>
           <StyledNavLink to="/trees">
-            <HiOutlineRectangleStack />
+            <HiOutlineRectangleGroup />
             <span>
               Trees
               <small>TP1</small>
@@ -97,10 +98,30 @@ function MainNav() {
 
         <li>
           <StyledNavLink to="/search">
-            <HiOutlineMagnifyingGlass />
+            <HiOutlineMagnifyingGlassCircle />
             <span>
-              Search & Heaps
+              Search
               <small>TP2</small>
+            </span>
+          </StyledNavLink>
+        </li>
+
+        <li>
+          <StyledNavLink to="/sorts">
+            <HiOutlineBarsArrowDown />
+            <span>
+              Sorts
+              <small>TP3</small>
+            </span>
+          </StyledNavLink>
+        </li>
+
+        <li>
+          <StyledNavLink to="/compare">
+            <HiOutlineScale />
+            <span>
+              Compare
+              <small>TP3</small>
             </span>
           </StyledNavLink>
         </li>
