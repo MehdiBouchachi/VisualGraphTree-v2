@@ -277,7 +277,7 @@ function QuickSortTree({ steps, scheme }) {
 /* ===================== Page ===================== */
 export default function TP3Sorts() {
   // Dataset controls
-  const [nStr, setNStr] = useState("20");
+  const [nStr, setNStr] = useState("30");
   const [minStr, setMinStr] = useState("1");
   const [maxStr, setMaxStr] = useState("99");
 

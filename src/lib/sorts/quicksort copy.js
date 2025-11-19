@@ -1,6 +1,5 @@
 // Instrumented QuickSort (Lomuto or Hoare) with detailed steps for visualization.
 // Returns { sorted, stats, steps, tookMs }
-
 export function quickSortInstrumented(
   input,
   {
@@ -15,11 +14,6 @@ export function quickSortInstrumented(
 
   const steps = [];
   const stats = { comparisons: 0, swaps: 0, partitions: 0, maxDepth: 0 };
-
-  const now =
-    typeof performance !== "undefined" && performance.now
-      ? () => performance.now()
-      : () => Date.now();
 
   const pushStep = (payload) => {
     if (!record) return;
@@ -36,30 +30,32 @@ export function quickSortInstrumented(
     pushStep({ action: "swap", i, j, note: `swap(${i},${j})` });
   };
 
-  const t0 = now();
+  // For consistent counting/visuals when we compare two array slots
+  const compareIdxVal = (idx, val) => {
+    stats.comparisons++;
+    pushStep({ action: "compare", i: idx, j: null });
+    return cmp(arr[idx], val);
+  };
+
+  const t0 = performance.now();
 
   if (arr.length > 1) {
     if (scheme === "hoare") {
-      // -------- Hoare partition (pivot = middle) --------
+      // === Hoare partition (correct with any comparator, great with duplicates) ===
       const partitionH = (l, r, depth) => {
-        const pivot = Math.floor((l + r) / 2);
-        const pivotVal = arr[pivot];
-
+        const mid = Math.floor((l + r) / 2);
+        const pivotVal = arr[mid];
         pushStep({
           action: "partition-start",
           l,
           r,
-          pivot,
-          depth,
-          note: `scheme=hoare, pivotIndex=${pivot}, pivot=${pivotVal}`,
+          pivot: mid,
+          note: `pivot=${pivotVal}`,
         });
 
         let i = l - 1;
         let j = r + 1;
-
-        // classic infinite loop with early return when pointers cross
-        // all comparisons go through cmp so asc/desc works
-        // arr[i] < pivotVal  ↔  cmp(arr[i], pivotVal) < 0
+        // Classic infinite loop form with early return when pointers cross
         for (;;) {
           do {
             i++;
@@ -77,12 +73,10 @@ export function quickSortInstrumented(
               l,
               r,
               pivot: j,
-              depth,
-              note: `scheme=hoare, p=${j}`,
+              note: `p=${j}`,
             });
             return j;
           }
-
           swap(i, j);
         }
       };
@@ -93,7 +87,7 @@ export function quickSortInstrumented(
           stats.maxDepth = Math.max(stats.maxDepth, depth);
           const p = partitionH(l, r, depth);
 
-          // Tail-call elimination: recurse on smaller side, loop on larger
+          // Tail-call elimination: recurse into smaller side first, iterate on larger
           if (p - l < r - (p + 1)) {
             qs(l, p, depth + 1);
             l = p + 1;
@@ -108,7 +102,7 @@ export function quickSortInstrumented(
 
       qs(0, arr.length - 1, 1);
     } else {
-      // -------- Lomuto partition (pivot = right) --------
+      // === Lomuto partition (pivot = right). Comparator-driven and safe for desc/asc. ===
       const partitionL = (l, r, depth) => {
         const pivot = r;
         const pivotVal = arr[pivot];
@@ -119,32 +113,20 @@ export function quickSortInstrumented(
           l,
           r,
           pivot,
-          depth,
-          note: `scheme=lomuto, pivotIndex=${pivot}, pivot=${pivotVal}`,
+          note: `pivot=${pivotVal}`,
         });
 
         for (let j = l; j < r; j++) {
           stats.comparisons++;
-          pushStep({ action: "compare", i: j, j: pivot, pivot, depth });
-
-          // elements that should be before pivot according to cmp
+          pushStep({ action: "compare", i: j, j: pivot, pivot });
+          // Put elements that should come BEFORE pivot (by comparator) on the left
           if (cmp(arr[j], pivotVal) <= 0) {
             swap(i, j);
             i++;
           }
         }
-
         swap(i, pivot);
-
-        pushStep({
-          action: "partition-end",
-          l,
-          r,
-          pivot: i,
-          depth,
-          note: `scheme=lomuto, p->${i}`,
-        });
-
+        pushStep({ action: "partition-end", l, r, pivot: i, note: `p->${i}` });
         return i;
       };
 
@@ -171,8 +153,7 @@ export function quickSortInstrumented(
     }
   }
 
-  const tookMs = Math.max(0, now() - t0);
+  const tookMs = Math.max(0, performance.now() - t0);
   pushStep({ action: "done" });
-
   return { sorted: arr, stats, steps, tookMs };
 }
