@@ -2,6 +2,9 @@ import { useMemo, useState } from "react";
 import styled from "styled-components";
 import Button from "../../ui/Button";
 
+const MAX_LENGTH = 20;
+const MAX_RANGE = 100; // hard limit on (max - min)
+
 const Wrapper = styled.div`
   display: flex;
   flex-direction: column;
@@ -13,11 +16,12 @@ const Title = styled.h4`
   font-size: 1.7rem;
   font-weight: 700;
   margin-bottom: 0.2rem;
+  color: var(--color-grey-900);
 `;
 
 const Description = styled.p`
   font-size: 1.3rem;
-  color: var(--color-grey-600);
+  color: var(--color-grey-500);
 
   code {
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
@@ -25,11 +29,12 @@ const Description = styled.p`
     padding: 0.1rem 0.4rem;
     border-radius: 0.4rem;
     background: var(--color-grey-50);
-    border: 1px solid var(--color-grey-100);
+    border: 1px solid var(--color-grey-200);
   }
 
   strong {
     font-weight: 600;
+    color: var(--color-grey-800);
   }
 `;
 
@@ -43,7 +48,7 @@ const TextareaLabel = styled.div`
 const LabelText = styled.span`
   font-size: 1.25rem;
   font-weight: 500;
-  color: var(--color-grey-700);
+  color: var(--color-brand-600);
 `;
 
 const HintText = styled.span`
@@ -61,6 +66,12 @@ const Textarea = styled.textarea`
   font-size: 1.35rem;
   font-family: inherit;
   line-height: 1.4;
+  background: var(--color-grey-0);
+  color: var(--color-grey-800);
+
+  &::placeholder {
+    color: var(--color-grey-400);
+  }
 
   &:focus {
     outline: none;
@@ -81,18 +92,25 @@ const MetaLeft = styled.div`
   flex-wrap: wrap;
   gap: 0.6rem;
   align-items: center;
-  color: var(--color-grey-600);
+  color: var(--color-grey-500);
 `;
 
 const Badge = styled.span`
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 0.1rem 0.7rem;
+  padding: 0.2rem 0.8rem;
   border-radius: 999px;
   border: 1px solid var(--color-grey-300);
   font-size: 1.15rem;
   background: var(--color-grey-50);
+  color: var(--color-grey-700);
+`;
+
+const BadgeWarning = styled(Badge)`
+  border-color: var(--color-yellow-700);
+  background: var(--color-yellow-100);
+  color: var(--color-yellow-700);
 `;
 
 const PreviewRow = styled.div`
@@ -103,24 +121,30 @@ const PreviewRow = styled.div`
 `;
 
 const ValueChip = styled.span`
-  padding: 0.15rem 0.6rem;
+  padding: 0.2rem 0.7rem;
   border-radius: 999px;
-  border: 1px solid var(--color-grey-200);
-  background: var(--color-grey-50);
+  border: 1px solid var(--color-brand-600);
+  background: var(--color-brand-50);
   font-size: 1.25rem;
   font-weight: 500;
-  color: var(--color-grey-700);
+  color: var(--color-brand-700);
+`;
+
+const ValueChipDuplicate = styled(ValueChip)`
+  border-color: var(--color-yellow-700);
+  background: var(--color-yellow-100);
+  color: var(--color-yellow-700);
 `;
 
 const ErrorText = styled.p`
   font-size: 1.25rem;
-  color: var(--color-red-600);
+  color: var(--color-red-700);
   min-height: 1.4rem;
 `;
 
 const SuccessText = styled.p`
   font-size: 1.25rem;
-  color: var(--color-emerald-600);
+  color: var(--color-green-700);
   min-height: 1.4rem;
 `;
 
@@ -131,50 +155,90 @@ const Footer = styled.div`
 `;
 
 // --- helpers -----------------------------------------------------
-
 function parseNumberList(raw) {
-  return raw
-    .replace(/,/g, " ")
-    .split(/\s+/)
-    .map((x) => parseInt(x, 10))
-    .filter((x) => !Number.isNaN(x));
+  const cleaned = raw.replace(/,/g, " ").trim();
+  if (!cleaned) return { numbers: [], invalidTokens: [] };
+
+  const tokens = cleaned.split(/\s+/);
+  const numbers = [];
+  const invalidTokens = [];
+
+  for (const token of tokens) {
+    if (/^-?\d+$/.test(token)) {
+      numbers.push(parseInt(token, 10));
+    } else {
+      invalidTokens.push(token);
+    }
+  }
+
+  return { numbers, invalidTokens };
 }
 
 /**
  * Props:
  *  - onApplyList(nums: number[]): void
- *  - onCloseModal(): void    (injected automatically by <Modal.Window>)
+ *  - onCloseModal(): void
  */
 function CustomListModalContent({ onApplyList, onCloseModal }) {
   const [value, setValue] = useState("");
   const [submitted, setSubmitted] = useState(false);
 
-  const numbers = useMemo(() => parseNumberList(value), [value]);
+  const { numbers, invalidTokens } = useMemo(
+    () => parseNumberList(value),
+    [value]
+  );
 
   const meta = useMemo(() => {
     if (!numbers.length) return null;
     let min = numbers[0];
     let max = numbers[0];
-    const seen = new Set();
-    let hasDuplicates = false;
+
+    const seenOnce = new Set();
+    const duplicateValues = new Set();
 
     for (const n of numbers) {
       if (n < min) min = n;
       if (n > max) max = n;
-      if (seen.has(n)) hasDuplicates = true;
-      seen.add(n);
+
+      if (seenOnce.has(n)) {
+        duplicateValues.add(n);
+      } else {
+        seenOnce.add(n);
+      }
     }
-    return { length: numbers.length, min, max, hasDuplicates };
+
+    const hasDuplicates = duplicateValues.size > 0;
+    const range = max - min;
+    return {
+      length: numbers.length,
+      min,
+      max,
+      range,
+      hasDuplicates,
+      duplicateValues,
+    };
   }, [numbers]);
 
-  const error =
-    numbers.length === 0 && submitted
-      ? "Please enter at least one number."
-      : numbers.length > 0 && numbers.length < 2
-      ? "The list must contain at least 2 numbers."
-      : numbers.length > 256
-      ? "The list must not exceed 256 numbers."
-      : null;
+  // validation rules
+  let error = null;
+
+  if (submitted || value.length > 0) {
+    if (invalidTokens.length > 0) {
+      error = `Invalid value${
+        invalidTokens.length > 1 ? "s" : ""
+      }: ${invalidTokens.slice(0, 4).join(", ")}. Only integers are allowed.`;
+    } else if (numbers.length === 0) {
+      error = "Please enter at least one number.";
+    } else if (numbers.length < 2) {
+      error = "The list must contain at least 2 numbers.";
+    } else if (numbers.length > MAX_LENGTH) {
+      error = `The list must not exceed ${MAX_LENGTH} numbers.`;
+    } else if (meta && meta.hasDuplicates) {
+      error = "Duplicates are not allowed. Please use distinct values.";
+    } else if (meta && meta.range > MAX_RANGE) {
+      error = `The gap between minimum and maximum is too large (range = ${meta.range}). Please keep values closer together (max − min ≤ ${MAX_RANGE}).`;
+    }
+  }
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -194,7 +258,12 @@ function CustomListModalContent({ onApplyList, onCloseModal }) {
       <Description>
         Enter your values separated by spaces or commas.{" "}
         <strong>Example:</strong> <code>5 3 9 1 7</code> or{" "}
-        <code>5,3,9,1,7</code>. The list must contain between 2 and 256 numbers.
+        <code>5,3,9,1,7</code>. The list must:
+        <br />• contain between <strong>2</strong> and{" "}
+        <strong>{MAX_LENGTH}</strong> numbers
+        <br />• have <strong>no duplicates</strong>
+        <br />• keep the values reasonably close (
+        <strong>max − min ≤ {MAX_RANGE}</strong>).
       </Description>
 
       <div>
@@ -224,8 +293,14 @@ function CustomListModalContent({ onApplyList, onCloseModal }) {
               <>
                 <Badge>Min: {meta.min}</Badge>
                 <Badge>Max: {meta.max}</Badge>
+                <Badge>Range: {meta.range}</Badge>
                 {meta.hasDuplicates && (
-                  <Badge>⚠ duplicates detected (QuickSort still works)</Badge>
+                  <BadgeWarning>⚠ duplicates detected</BadgeWarning>
+                )}
+                {meta.range > MAX_RANGE && (
+                  <BadgeWarning>
+                    ⚠ range too large (&gt; {MAX_RANGE})
+                  </BadgeWarning>
                 )}
               </>
             )}
@@ -239,9 +314,16 @@ function CustomListModalContent({ onApplyList, onCloseModal }) {
 
         {numbers.length > 0 && (
           <PreviewRow>
-            {numbers.slice(0, 10).map((n, idx) => (
-              <ValueChip key={`${n}-${idx}`}>{n}</ValueChip>
-            ))}
+            {numbers.slice(0, 10).map((n, idx) => {
+              const isDuplicate =
+                meta && meta.duplicateValues && meta.duplicateValues.has(n);
+
+              const ChipComponent = isDuplicate
+                ? ValueChipDuplicate
+                : ValueChip;
+
+              return <ChipComponent key={`${n}-${idx}`}>{n}</ChipComponent>;
+            })}
             {numbers.length > 10 && (
               <ValueChip>+{numbers.length - 10} more…</ValueChip>
             )}
@@ -251,7 +333,11 @@ function CustomListModalContent({ onApplyList, onCloseModal }) {
 
       {error ? (
         <ErrorText>{error}</ErrorText>
-      ) : numbers.length >= 2 ? (
+      ) : numbers.length >= 2 &&
+        numbers.length <= MAX_LENGTH &&
+        meta &&
+        !meta.hasDuplicates &&
+        meta.range <= MAX_RANGE ? (
         <SuccessText>Looks good, ready to apply.</SuccessText>
       ) : (
         <ErrorText />

@@ -14,6 +14,75 @@ const Grid = styled.div`
   }
 `;
 
+/* Wrapper for the speed control row */
+const SpeedRow = styled.div`
+  margin-left: 18px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+`;
+
+const SpeedLabel = styled.span`
+  font-size: 1.2rem;
+  color: var(--color-grey-600);
+`;
+
+/* Styled range input matching your design system */
+const SpeedSlider = styled.input.attrs({ type: "range" })`
+  appearance: none;
+  width: 180px;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--color-grey-300);
+  outline: none;
+  cursor: pointer;
+
+  /* WebKit (Chrome, Edge, Safari) */
+  &::-webkit-slider-runnable-track {
+    height: 4px;
+    border-radius: 999px;
+    background: var(--color-grey-300);
+  }
+
+  &::-webkit-slider-thumb {
+    appearance: none;
+    width: 14px;
+    height: 14px;
+    border-radius: 999px;
+    background: var(--color-brand-500);
+    border: 2px solid var(--color-grey-0);
+    box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.35); /* soft brand glow */
+    margin-top: -5px; /* center on track */
+  }
+
+  /* Firefox */
+  &::-moz-range-track {
+    height: 4px;
+    border-radius: 999px;
+    background: var(--color-grey-300);
+  }
+
+  &::-moz-range-thumb {
+    width: 14px;
+    height: 14px;
+    border-radius: 999px;
+    background: var(--color-brand-500);
+    border: 2px solid var(--color-grey-0);
+    box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.35);
+  }
+
+  &:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 2px var(--color-brand-600);
+  }
+`;
+
+const SpeedValue = styled.span`
+  font-size: 1.2rem;
+  color: var(--color-grey-600);
+`;
+
 /* Playback hook local to visualization */
 function useQuickSortPlayback(steps, { autoplay = false, speedMs = 260 } = {}) {
   const [idx, setIdx] = useState(0);
@@ -59,14 +128,26 @@ function QuickSortVisualization({ array, steps }) {
     <>
       <Grid>
         <div>
-          <div style={{ fontSize: 12, color: "#64748b", marginBottom: 6 }}>
+          <div
+            style={{
+              fontSize: 12,
+              color: "var(--color-grey-500)",
+              marginBottom: 6,
+            }}
+          >
             Initial
           </div>
           {/* Original array, no highlight */}
           <ArrayBars array={array} step={null} />
         </div>
         <div>
-          <div style={{ fontSize: 12, color: "#16a34a", marginBottom: 6 }}>
+          <div
+            style={{
+              fontSize: 12,
+              color: "#16a34a",
+              marginBottom: 6,
+            }}
+          >
             Current Step
           </div>
           <ArrayBars
@@ -109,29 +190,27 @@ function QuickSortVisualization({ array, steps }) {
           Step ⟶
         </Button>
 
-        <div style={{ marginLeft: 12, fontSize: 12, color: "#475569" }}>
+        <div
+          style={{
+            marginLeft: 12,
+            fontSize: 12,
+            color: "var(--color-grey-600)",
+          }}
+        >
           Step: {playback.idx + 1} / {steps.length}
         </div>
 
-        <div
-          style={{
-            marginLeft: 18,
-            display: "flex",
-            alignItems: "center",
-            gap: 6,
-          }}
-        >
-          <span style={{ fontSize: 12, color: "#64748b" }}>Speed</span>
-          <input
-            type="range"
+        <SpeedRow>
+          <SpeedLabel>Speed</SpeedLabel>
+          <SpeedSlider
             min="40"
             max="800"
             step="20"
             value={speedMs}
             onChange={(e) => setSpeedMs(parseInt(e.target.value, 10))}
           />
-          <span style={{ fontSize: 12, color: "#64748b" }}>{speedMs} ms</span>
-        </div>
+          <SpeedValue>{speedMs} ms</SpeedValue>
+        </SpeedRow>
       </div>
     </>
   );
