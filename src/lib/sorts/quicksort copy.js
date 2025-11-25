@@ -1,14 +1,13 @@
 // Instrumented QuickSort with 5 pivot cases and detailed steps for visualization.
 // Returns { sorted, stats, steps, tookMs }
+//
+// - order: "asc" | "desc"
+// - pivotCase: "first" | "middle" | "last" | "median-of-three" | "random"
+// - steps: used by the visualizer (ArrayBars + QuickSortTree)
 
 export function quickSortInstrumented(
   input,
-  {
-    order = "asc", // "asc" | "desc"
-    pivotCase = "last", // "first" | "middle" | "last" | "median-of-three" | "random"
-    record = true,
-    maxSteps = 200000,
-  } = {}
+  { order = "asc", pivotCase = "last", record = true, maxSteps = 200000 } = {}
 ) {
   const arr = Array.isArray(input) ? input.slice() : [];
   const cmp = order === "asc" ? (a, b) => a - b : (a, b) => b - a;
@@ -27,7 +26,6 @@ export function quickSortInstrumented(
       ? () => performance.now()
       : () => Date.now();
 
-  // ---- theoretical complexity per pivot case (for the stats card) ----
   const complexityTable = {
     first: {
       id: "first",
@@ -79,10 +77,10 @@ export function quickSortInstrumented(
   const pushStep = (payload) => {
     if (!record) return;
     if (steps.length >= maxSteps) return;
-    // always capture a snapshot of the current array
     steps.push({ a: arr.slice(), ...payload });
   };
 
+  // swap with optional "silent" flag (no step recorded)
   const swapValues = (i, j, { silent = false } = {}) => {
     if (i === j) return;
     const tmp = arr[i];
@@ -101,14 +99,18 @@ export function quickSortInstrumented(
     switch (pivotCase) {
       case "first":
         return leftIndex;
+
       case "middle":
         return middleIndex;
+
       case "last":
         return rightIndex;
+
       case "random":
         return (
           leftIndex + Math.floor(Math.random() * (rightIndex - leftIndex + 1))
         );
+
       case "median-of-three":
       default: {
         const i = leftIndex;
@@ -147,10 +149,11 @@ export function quickSortInstrumented(
       });
 
       // 2. move pivot to the end to reuse the classic Lomuto algorithm
+      //    (do it silently so the first visible step is the choice above)
       swapValues(chosenPivotIndex, rightIndex, { silent: true });
       const pivotIndex = rightIndex;
 
-      // partition-start (pivot now at the end of the segment)
+      // 3. partition-start step (pivot now at the end of the segment)
       pushStep({
         action: "partition-start",
         l: leftIndex,
@@ -160,7 +163,7 @@ export function quickSortInstrumented(
         note: `pivotCase=${pivotCase}, pivotIndexAtEnd=${pivotIndex}, pivotValue=${pivotValue}`,
       });
 
-      // 3. Lomuto partition
+      // 4. Lomuto partition
       let storeIndex = leftIndex;
       for (let j = leftIndex; j < rightIndex; j++) {
         stats.comparisons++;
@@ -178,7 +181,7 @@ export function quickSortInstrumented(
         }
       }
 
-      // 4. put pivot in its final sorted position
+      // 5. put pivot in its final sorted position
       swapValues(storeIndex, pivotIndex);
 
       pushStep({
@@ -193,30 +196,33 @@ export function quickSortInstrumented(
       return storeIndex;
     };
 
-    // ---- simple recursive QuickSort (no tail optimization) ----
+    // ---- quicksort recursion with tail-call optimization ----
     const quickSortRecursive = (leftIndex, rightIndex, depth) => {
-      if (leftIndex >= rightIndex) {
-        // segment of size 0 or 1 = leaf in the divide & conquer tree
-        if (leftIndex === rightIndex) {
-          pushStep({
-            action: "segment-leaf",
-            l: leftIndex,
-            r: rightIndex,
-            pivot: leftIndex,
-            depth,
-            note: "Segment of size 1 (already sorted)",
-          });
+      while (leftIndex < rightIndex) {
+        stats.partitions++;
+        stats.maxDepth = Math.max(stats.maxDepth, depth);
+
+        const pivotFinalIndex = partitionSegment(leftIndex, rightIndex, depth);
+
+        const leftSegmentSize = pivotFinalIndex - 1 - leftIndex;
+        const rightSegmentSize = rightIndex - (pivotFinalIndex + 1);
+
+        if (leftSegmentSize < rightSegmentSize) {
+          // Left segment is smaller
+          if (leftIndex < pivotFinalIndex - 1) {
+            quickSortRecursive(leftIndex, pivotFinalIndex - 1, depth + 1);
+          }
+          leftIndex = pivotFinalIndex + 1;
+          depth += 1;
+        } else {
+          // Right segment is smaller
+          if (pivotFinalIndex + 1 < rightIndex) {
+            quickSortRecursive(pivotFinalIndex + 1, rightIndex, depth + 1);
+          }
+          rightIndex = pivotFinalIndex - 1;
+          depth += 1;
         }
-        return;
       }
-
-      stats.partitions++;
-      stats.maxDepth = Math.max(stats.maxDepth, depth);
-
-      const pivotFinalIndex = partitionSegment(leftIndex, rightIndex, depth);
-
-      quickSortRecursive(leftIndex, pivotFinalIndex - 1, depth + 1);
-      quickSortRecursive(pivotFinalIndex + 1, rightIndex, depth + 1);
     };
 
     quickSortRecursive(0, arr.length - 1, 1);

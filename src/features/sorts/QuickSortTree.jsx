@@ -45,7 +45,6 @@ const NodeHeader = styled.div`
   span.badge {
     padding: 0.1rem 0.6rem;
     font-size: 1.3rem;
-
     border-radius: 999px;
     border: 1px solid var(--color-grey-700);
     color: var(--color-grey-700);
@@ -76,24 +75,52 @@ const ValueBox = styled.div`
     $pivot ? "var(--color-brand-100)" : "var(--color-grey-700)"};
 `;
 
-/* Build tree levels from "choose-pivot" steps */
+/* Final sorted row */
+const FinalRow = styled.div`
+  margin-top: 0.8rem;
+  padding-top: 0.8rem;
+  border-top: 1px dashed var(--color-grey-200);
+`;
+
+const FinalLabel = styled.div`
+  font-size: 1.15rem;
+  font-weight: 600;
+  color: var(--color-grey-700);
+  margin-bottom: 0.4rem;
+`;
+
+/**
+ * Build tree levels from QuickSort steps.
+ *
+ * We use:
+ *  - "choose-pivot"  → sub-array BEFORE partition, with chosen pivot highlighted
+ *  - "segment-leaf"  → segments of size 1 (values that were never partitioned)
+ */
 function buildQuickSortLevels(steps) {
   const levelMap = new Map();
 
   steps.forEach((s) => {
-    if (s.action !== "choose-pivot") return;
-    if (typeof s.l !== "number" || typeof s.r !== "number") return;
+    if (
+      (s.action !== "choose-pivot" && s.action !== "segment-leaf") ||
+      typeof s.l !== "number" ||
+      typeof s.r !== "number"
+    ) {
+      return;
+    }
 
     const segment = s.a.slice(s.l, s.r + 1);
-    const pivotOffset = s.pivot - s.l;
+    if (!segment.length) return;
+
+    const pivotOffset = s.action === "segment-leaf" ? 0 : s.pivot - s.l; // for leaf: only element
 
     const node = {
-      id: `${s.depth}-${s.l}-${s.r}-${s.pivot}-${segment.length}`,
+      id: `${s.action}-${s.depth}-${s.l}-${s.r}-${segment.length}`,
       depth: s.depth,
       l: s.l,
       r: s.r,
       pivotOffset,
       array: segment,
+      isLeaf: s.action === "segment-leaf",
     };
 
     if (!levelMap.has(s.depth)) levelMap.set(s.depth, []);
@@ -125,6 +152,8 @@ function QuickSortTree({ steps, pivotCase }) {
   }
 
   const n = steps[0]?.a?.length ?? 0;
+  const finalSnapshot = steps[steps.length - 1]?.a ?? null;
+
   if (n > 20) {
     return (
       <div style={{ fontSize: 12, color: "var(--color-grey-400)" }}>
@@ -151,7 +180,7 @@ function QuickSortTree({ steps, pivotCase }) {
         <span style={{ color: "var(--color-brand-500, #38bdf8)" }}>
           (pivot highlighted)
         </span>
-        .
+        . Size-1 segments are also shown as leaf nodes.
       </div>
 
       {levels.map((level) => (
@@ -164,7 +193,11 @@ function QuickSortTree({ steps, pivotCase }) {
                   <span>
                     [{node.l} … {node.r}]
                   </span>
-                  <span className="badge">size = {node.array.length}</span>
+                  <span className="badge">
+                    {node.isLeaf
+                      ? "size = 1 (leaf)"
+                      : `size = ${node.array.length}`}
+                  </span>
                 </NodeHeader>
 
                 <ValuesRow>
@@ -179,6 +212,18 @@ function QuickSortTree({ steps, pivotCase }) {
           </LevelRow>
         </div>
       ))}
+
+      {/* Final sorted array */}
+      {finalSnapshot && (
+        <FinalRow>
+          <FinalLabel>Final sorted array</FinalLabel>
+          <ValuesRow>
+            {finalSnapshot.map((v, idx) => (
+              <ValueBox key={idx}>{v}</ValueBox>
+            ))}
+          </ValuesRow>
+        </FinalRow>
+      )}
     </TreeWrap>
   );
 }
