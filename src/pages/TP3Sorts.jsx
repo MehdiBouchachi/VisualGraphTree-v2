@@ -63,7 +63,6 @@ const Grid = styled.div`
 `;
 
 /* ===================== Tree view styles ===================== */
-
 const TreeWrap = styled.div`
   display: flex;
   flex-direction: column;
@@ -142,14 +141,16 @@ const ValueBox = styled.div`
 function usePlayback(steps, { autoplay = false, speedMs = 260 } = {}) {
   const [idx, setIdx] = useState(0);
   const [playing, setPlaying] = useState(autoplay);
-  const timer = useRef();
+  const timerRef = useRef(null);
 
   useEffect(() => {
     if (!playing) return;
-    timer.current = setInterval(() => {
-      setIdx((i) => (i + 1 < steps.length ? i + 1 : i));
+    timerRef.current = setInterval(() => {
+      setIdx((current) => (current + 1 < steps.length ? current + 1 : current));
     }, speedMs);
-    return () => clearInterval(timer.current);
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
   }, [playing, speedMs, steps.length]);
 
   // When steps change, restart playback
@@ -170,21 +171,24 @@ function usePlayback(steps, { autoplay = false, speedMs = 260 } = {}) {
     reset: () => setIdx(0),
   };
 }
-
 /* ===================== Tree builder ===================== */
 /**
  * Build a divide-and-conquer tree from QuickSort steps.
- * We keep only "partition-end" steps and group them by depth.
+ *
+ * We now use ONLY the "choose-pivot" steps:
+ *  - array snapshot = sub-array BEFORE partition
+ *  - pivot index     = element chosen according to the pivot case
+ *    (start / middle / end / median-of-three / random)
  */
 function buildQuickSortLevels(steps) {
   const levelMap = new Map(); // depth -> nodes[]
 
   steps.forEach((s) => {
-    if (s.action !== "partition-end") return;
+    if (s.action !== "choose-pivot") return;
     if (typeof s.l !== "number" || typeof s.r !== "number") return;
 
     const segment = s.a.slice(s.l, s.r + 1);
-    const pivotOffset = s.pivot - s.l;
+    const pivotOffset = s.pivot - s.l; // index of pivot inside [l..r]
 
     const node = {
       id: `${s.depth}-${s.l}-${s.r}-${s.pivot}-${segment.length}`,
@@ -199,14 +203,22 @@ function buildQuickSortLevels(steps) {
     levelMap.get(s.depth).push(node);
   });
 
+  // sort levels by depth (1, 2, 3, …)
   return Array.from(levelMap.entries())
     .sort((a, b) => a[0] - b[0])
     .map(([depth, nodes]) => ({ depth, nodes }));
 }
 
-/* ===================== Tree component ===================== */
-function QuickSortTree({ steps, scheme }) {
+function QuickSortTree({ steps, pivotCase }) {
   const levels = useMemo(() => buildQuickSortLevels(steps), [steps]);
+
+  const pivotCaseLabels = {
+    first: "Pivot at start (first element)",
+    middle: "Pivot in the middle index",
+    last: "Pivot at end (last element)",
+    "median-of-three": "Median-of-three (first / middle / last)",
+    random: "Random pivot index",
+  };
 
   if (!levels.length) {
     return (
@@ -237,8 +249,9 @@ function QuickSortTree({ steps, scheme }) {
           marginBottom: 4,
         }}
       >
-        Scheme: <strong>{scheme}</strong> – each box is one sub-array
-        partitioned around its pivot{" "}
+        Pivot case: <strong>{pivotCaseLabels[pivotCase] || pivotCase}</strong> –
+        each box shows one sub-array <strong>before</strong> it is partitioned,
+        with the element chosen as pivot{" "}
         <span style={{ color: "var(--color-brand-500, #38bdf8)" }}>
           (pivot highlighted)
         </span>
@@ -285,27 +298,47 @@ export default function TP3Sorts() {
   const MIN = parseInt(minStr || "0", 10);
   const MAX = parseInt(maxStr || "0", 10);
 
-  function gen(n, a, b) {
-    const L = Math.max(2, n);
-    const lo = Math.min(a, b);
-    const hi = Math.max(a, b);
-    return Array.from(
-      { length: L },
-      () => lo + Math.floor(Math.random() * (hi - lo + 1))
-    );
+  // Generate a random array in [MIN, MAX]
+  // Generate a random array of UNIQUE integers in [a, b]
+  function generateRandomArray(n, a, b) {
+    const low = Math.min(a, b);
+    const high = Math.max(a, b);
+    const rangeSize = high - low + 1;
+
+    // we can’t create more unique numbers than the range size
+    const length = Math.max(2, Math.min(n, rangeSize));
+
+    // build [low, low+1, ..., high]
+    const pool = [];
+    for (let v = low; v <= high; v++) pool.push(v);
+
+    // Fisher–Yates shuffle
+    for (let i = pool.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      const tmp = pool[i];
+      pool[i] = pool[j];
+      pool[j] = tmp;
+    }
+
+    // take the first `length` elements => all distinct
+    return pool.slice(0, length);
   }
 
-  const [arr, setArr] = useState(() => gen(N, MIN, MAX));
+  const [arr, setArr] = useState(() => generateRandomArray(N, MIN, MAX));
 
   // Algorithm settings
   const [algo, setAlgo] = useState("quicksort");
   const [order, setOrder] = useState("desc");
-  const [scheme, setScheme] = useState("hoare");
+  const [pivotCase, setPivotCase] = useState("last");
 
-  // Run quicksort (or fallback)
+  // Run QuickSort (or fallback)
   const result = useMemo(() => {
     if (algo === "quicksort") {
-      return quickSortInstrumented(arr, { order, scheme, record: true });
+      return quickSortInstrumented(arr, {
+        order,
+        pivotCase,
+        record: true,
+      });
     }
     return {
       sorted: arr.slice(),
@@ -313,7 +346,7 @@ export default function TP3Sorts() {
       steps: [{ a: arr.slice(), action: "idle" }],
       tookMs: 0,
     };
-  }, [arr, algo, order, scheme]);
+  }, [arr, algo, order, pivotCase]);
 
   const { steps, stats, tookMs } = result;
 
@@ -321,7 +354,7 @@ export default function TP3Sorts() {
   const [speedMs, setSpeedMs] = useState(220);
   const pb = usePlayback(steps, { autoplay: false, speedMs });
 
-  const regenerate = () => setArr(gen(N, MIN, MAX));
+  const regenerate = () => setArr(generateRandomArray(N, MIN, MAX));
 
   const buildFromText = (txt) => {
     const nums = txt
@@ -331,6 +364,8 @@ export default function TP3Sorts() {
       .filter((x) => !Number.isNaN(x));
     if (nums.length >= 2 && nums.length <= 256) setArr(nums);
   };
+
+  const complexity = stats.complexity || null;
 
   return (
     <div className="grid gap-6">
@@ -364,15 +399,21 @@ export default function TP3Sorts() {
             />
           </Field>
 
-          <Field htmlFor="scheme">
-            <span className="field-label">Partition scheme</span>
+          <Field htmlFor="pivotCase">
+            <span className="field-label">Pivot case (pivot position)</span>
             <Select
-              id="scheme"
-              value={scheme}
-              onChange={(e) => setScheme(e.target.value)}
+              id="pivotCase"
+              value={pivotCase}
+              onChange={(e) => setPivotCase(e.target.value)}
               options={[
-                { value: "lomuto", label: "Lomuto (pivot right)" },
-                { value: "hoare", label: "Hoare (pivot middle)" },
+                { value: "first", label: "Start (first element)" },
+                { value: "middle", label: "Middle index" },
+                { value: "last", label: "End (last element)" },
+                {
+                  value: "median-of-three",
+                  label: "Median-of-three (first/middle/last)",
+                },
+                { value: "random", label: "Random index in [L, R]" },
               ]}
             />
           </Field>
@@ -437,7 +478,8 @@ export default function TP3Sorts() {
             <div style={{ fontSize: 12, color: "#64748b", marginBottom: 6 }}>
               Initial
             </div>
-            <ArrayBars array={steps[0]?.a ?? arr} step={steps[0]} />
+            {/* FIX: always show the original array, without any step highlighting */}
+            <ArrayBars array={arr} step={null} />
           </div>
           <div>
             <div style={{ fontSize: 12, color: "#16a34a", marginBottom: 6 }}>
@@ -502,10 +544,10 @@ export default function TP3Sorts() {
         </div>
       </Card>
 
-      {/* ===== Divide & Conquer tree (like the merge-sort diagram) ===== */}
+      {/* ===== Divide & Conquer tree (QuickSort partitions) ===== */}
       <Card>
         <Title>Divide &amp; Conquer Tree (QuickSort partitions)</Title>
-        <QuickSortTree steps={steps} scheme={scheme} />
+        <QuickSortTree steps={steps} pivotCase={pivotCase} />
       </Card>
 
       {/* ===== Stats ===== */}
@@ -518,8 +560,20 @@ export default function TP3Sorts() {
           <DataItem label="Max recursion depth">{stats.maxDepth}</DataItem>
           <DataItem label="Execution time">{tookMs.toFixed(2)} ms</DataItem>
           <DataItem label="Array size">{arr.length}</DataItem>
-          <DataItem label="Scheme">{scheme}</DataItem>
           <DataItem label="Order">{order}</DataItem>
+          <DataItem label="Pivot case">
+            {complexity?.label || stats.pivotCase || pivotCase}
+          </DataItem>
+          <DataItem label="Best case">
+            {complexity?.best || "O(n log n)"}
+          </DataItem>
+          <DataItem label="Average case">
+            {complexity?.average || "O(n log n)"}
+          </DataItem>
+          <DataItem label="Worst case">{complexity?.worst || "O(n²)"}</DataItem>
+          <DataItem label="Notes">
+            {complexity?.notes || "Theoretical complexity for this pivot case."}
+          </DataItem>
         </div>
       </Card>
     </div>
