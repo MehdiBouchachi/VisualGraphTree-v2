@@ -26,7 +26,6 @@ export function quickSortInstrumented(
       ? () => performance.now()
       : () => Date.now();
 
-  // ---- theoretical complexity per pivot case (for explanation) ----
   const complexityTable = {
     first: {
       id: "first",
