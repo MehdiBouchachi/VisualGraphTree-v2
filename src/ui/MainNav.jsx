@@ -117,11 +117,11 @@ function MainNav() {
         </li>
 
         <li>
-          <StyledNavLink to="/compare">
+          <StyledNavLink to="/pcc">
             <HiOutlineScale />
             <span>
-              Compare
-              <small>TP3</small>
+              PCC & Coloring
+              <small>TP4</small>
             </span>
           </StyledNavLink>
         </li>

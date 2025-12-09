@@ -13,6 +13,7 @@ import TP1TreesPage from "./pages/TP1TreesPage";
 import TP2SearchPage from "./pages/TP2SearchTrees";
 import TP3Sorts from "./pages/TP3Sorts";
 import TP3Compare from "./pages/TP3Compare";
+import TP4Page from "./pages/TP4PCCColor";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -38,6 +39,7 @@ function App() {
               <Route path="search" element={<TP2SearchPage />} />
               <Route path="sorts" element={<TP3Sorts />} />
               <Route path="compare" element={<TP3Compare />} />
+              <Route path="pcc" element={<TP4Page />} />
             </Route>
 
             {/*      <Route path="login" element={<Login />} /> */}
