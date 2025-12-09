@@ -6,14 +6,14 @@ import Input from "../../ui/Input";
 
 /* Simple color palette for DSatur nodes */
 const COLOR_PALETTE = [
-  "#4338ca",
-  "#b91c1c",
-  "#15803d",
-  "#a16207",
-  "#0f766e",
-  "#1d4ed8",
-  "#7c3aed",
-  "#4b5563",
+  "#2563eb", // Blue
+  "#dc2626", // Red
+  "#16a34a", // Green
+  "#d97706", // Amber
+  "#7c3aed", // Purple
+  "#059669", // Emerald
+  "#ea580c", // Orange
+  "#0ea5e9", // Sky Blue
 ];
 
 /* ========== UI pieces (aligned with other sections) ========== */
