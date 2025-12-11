@@ -1,5 +1,9 @@
 
-# Graph & Algorithms Visualizer by Mehdi Bouchachi and Idriss Kebladj.
+# GROUP 12 Mehdi Bouchachi and Idriss Kebladj.
+
+---
+
+# Graph & Algorithms Visualizer
 
 ### TP1 · TP2 · TP3 · TP4 — Full React Application
 
